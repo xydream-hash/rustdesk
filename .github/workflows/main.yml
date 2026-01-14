@@ -1,0 +1,60 @@
+# RustDesk 纯服务端编译 (仅hbbs+hbbr) - Linux x86_64 静态最优版
+name: Build RustDesk Server Only (hbbs + hbbr)
+
+# 触发方式：仅手动触发【重点】，不会自动编译，按需运行
+on:
+  workflow_dispatch:
+
+jobs:
+  build-server-linux:
+    # 使用GitHub官方Ubuntu云服务器，稳定无坑
+    runs-on: ubuntu-22.04
+    steps:
+      # 步骤1：拉取源码，只拉取最新版，不下载历史记录（加速）
+      - name: Checkout RustDesk Source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # 步骤2：安装编译依赖（Ubuntu最小化依赖，仅服务端需要）
+      - name: Install Build Dependencies
+        run: sudo apt update -y && sudo apt install -y build-essential gcc git
+
+      # 步骤3：安装Rust编译环境（稳定版，适配服务端）
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable-x86_64-unknown-linux-gnu
+
+      # 步骤4：核心编译【纯服务端指令，重中之重】
+      # 只编译hbbs+hbbr | 生产release优化 | 静态编译 | 服务端专属 | SIMD性能优化
+      - name: Compile Only hbbs & hbbr (Server Pure)
+        run: |
+          cargo build --release \
+                      --features "vendored server simd no_ssl" \
+                      --bin hbbs \
+                      --bin hbbr
+
+      # 步骤5：验证编译产物【服务端必做】，确认是静态文件+无依赖
+      - name: Verify Server Binaries
+        run: |
+          echo "=== 验证文件类型 (必须是 static 静态文件) ==="
+          file target/release/hbbs
+          file target/release/hbbr
+          echo "=== 验证文件大小 (纯净服务端体积很小) ==="
+          ls -lh target/release/hbbs target/release/hbbr
+
+      # 步骤6：打包产物，纯净压缩包，仅含hbbs+hbbr
+      - name: Package Server Files
+        run: |
+          mkdir -p rustdesk-server-pure
+          cp target/release/hbbs rustdesk-server-pure/
+          cp target/release/hbbr rustdesk-server-pure/
+          zip -q -r rustdesk-server-linux-x86_64-pure-nossl.zip rustdesk-server-pure/
+
+      # 步骤7：上传产物，可永久下载（保存90天，免费额度足够）
+      - name: Upload Pure Server Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-server-linux-x86_64
+          path: rustdesk-server-linux-x86_64-pure-nossl.zip
