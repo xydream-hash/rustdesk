@@ -1,0 +1,60 @@
+# RustDesk 安卓客户端 自动编译工作流
+name: Build RustDesk Android APK
+
+# 触发条件：1.手动点击运行 2.push代码到main分支时自动编译
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+# 编译环境：使用最新版Ubuntu（编译安卓最快最稳定）
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # 步骤1：拉取当前仓库代码到云端服务器
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive  # 必须拉取子模块，rustdesk依赖子模块编译
+
+      # 步骤2：安装 Rust 环境（安卓编译核心依赖）
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android
+
+      # 步骤3：安装 JDK 17（安卓SDK必须依赖JDK17）
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # 步骤4：安装 tauri-cli 核心编译工具（rustdesk安卓端基于tauri-mobile）
+      - name: Install tauri-cli
+        run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --tag tauri-mobile-v0.5.0-alpha.8
+
+      # 步骤5：安装安卓SDK和NDK（自动配置，无需手动下载）
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 步骤6：配置安卓编译环境变量（关键，解决编译环境依赖问题）
+      - name: Configure Android Env
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+
+      # 步骤7：执行编译命令，编译安卓release正式包（核心步骤）
+      - name: Build Android APK
+        run: |
+          cd src-tauri
+          cargo tauri android build --release
+
+      # 步骤8：上传编译好的APK包到GitHub（编译产物可下载）
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RustDesk-Android-Custom
+          # 编译后的APK包存放路径，固定位置
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/release/*.apk
