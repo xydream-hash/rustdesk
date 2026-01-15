@@ -31,7 +31,7 @@ jobs:
 
       # 步骤4：安装 tauri-cli 核心编译工具（rustdesk安卓端基于tauri-mobile）
       - name: Install tauri-cli
-        run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --tag tauri-mobile-v0.5.0-alpha.10
+        run: cargo install tauri-cli --version 2.9.6
 
       # 步骤5：安装安卓SDK和NDK（自动配置，无需手动下载）
       - name: Setup Android SDK
